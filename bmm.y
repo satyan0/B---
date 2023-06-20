@@ -8,73 +8,93 @@ extern void yyerror(const char* message);
 extern int yylex();
 extern FILE* yyin;
 extern FILE* yyout;
+int endcount=0;
+int currentline=0;
+float temp;
 %}
 
-%token DATA END LET REM STOP PRINT DEF_FN GOTO GOSUB IF THEN RETURN ID DIM FOR TO STEP INPUT NEXT RO LO NUM
-%token STRING COMMA ASSIGN INT_ID SINGLE_ID DOUBLE_ID STRING_ID QUOTE SEMICOLON
-%token INT DOUBLE PLUS MINUS DIV MUL OBRAK CBRAK POWER
-%left PLUS MINUS
-%left DIV MUL 
+%token DATA END LET REM STOP PRINT DEF_FN GOTO GOSUB IF THEN RETURN ID DIM FOR TO STEP INPUT NEXT RO LO NUM INT FLOAT
+%token STRING ASSIGN INT_ID DOUBLE_ID STRING_ID FLOAT_ID COMMENT
+%token DOUBLE ERROR NE
+%left '+' '-'
+%left '*' '/'
+%left '^'
+
 %%
 program:    
-    stmt_list program
-    | stmt_list
+    INT stmt_list program   {currentline = atoi($1);if(endcount>1)fprintf(stderr, "MORE THAN ONE END DETECTED");}
+    | INT stmt_list         {currentline = atoi($1);if(endcount>1)fprintf(stderr, "MORE THAN ONE END DETECTED");}
+    | FLOAT                 {temp=atof($1);fprintf(stdout, "%f", temp);}
+    | ID              {fprintf(stdout, "%s", $1);}
     ;
 
 stmt_list:
-    data_stmt
-    | def_fnx_stmt
-    | dim_stmt
-    | for_stmt
+    data_stmt       
+    | def_fnx_stmt  
+    | dim_stmt      
+    | for_stmt      
     | gosub_stmt
     | goto_stmt
     | if_stmt
+    | input_stmt
     | print_stmt
     | return_stmt
     | end_stmt
-    | let_stmt
-    | rem_stmt
-    | stop_stmt
+    | let_stmt       
+    | stop_stmt      
+    | rem_stmt   
+    | next_stmt    
     ;
 
 data_stmt:
-    INT DATA data_list
+    DATA data_list      {fprintf(stdout," :DATA STATEMENT");}
     ;
 
 data_list:
-    data_item
-    | data_item COMMA data_list
+    data_item   
+    | data_item ',' data_list 
     ;
 
 data_item:
-    INT
-    | DOUBLE
-    | STRING
+    INT         {fprintf(stdout,"%s ", $1);}
+    | FLOAT     {fprintf(stdout,"%s ", $1);}
+    | DOUBLE    {fprintf(stdout,"%s ", $1);}
+    | STRING {fprintf(stdout,"%s ", $1);}
     ;
 
 
 def_fnx_stmt:
-    DEF_FN ID '=' expr
-    | DEF_FN ID '('ID')' '=' expr
+    DEF_FN ID '=' expr      {fprintf(stdout, "\nDEF FN %s = %s\n", $2, $4);}
+    | DEF_FN ID '('ID')' '=' expr  {fprintf(stdout, "\nDEF FN %s (%s) = %s\n", $2,$4, $7);}
     ;
 
 dim_stmt:
-    DIM ID '('INT')' dim_cont   {fprintf(stdout,"DIM %s (%s) ",$2, $4);}
-    | DIM ID '('INT','INT')' dim_cont  {fprintf(stdout,"DIM %s (%s, %s) ",$2, $4, $6);}
+    DIM ID '('INT')' dim_cont   {fprintf(stdout,"\nDIM %s (%s) ",$2, $4);}
+    | DIM ID '('INT','INT')' dim_cont  {fprintf(stdout,"\nDIM %s (%s, %s) ",$2, $4, $6);}
     ;
 
 dim_cont:
-    ',' ID '('INT')' dim_cont  {fprintf(stdout,"DIM %s (%s)\n",$2, $4);}
-    | ',' ID '('INT','INT')' dim_cont  {fprintf(stdout,"DIM %s (%s, %s)\n",$2, $4, $6);}
+    ',' ID '('INT')' dim_cont  {fprintf(stdout,"\nDIM %s (%s)\n",$2, $4);}
+    | ',' ID '('INT','INT')' dim_cont  {fprintf(stdout,"\nDIM %s (%s, %s)\n",$2, $4, $6);}
     |
     ;
 
 for_stmt:
-    FOR ID '=' expr TO expr STEP expr opt_step
-                        {fprintf(stdout, "FOR loop from %d to %d with step %d, index variable %s\n", $4, $6, $8, $2); }
-    stmt_list
-    NEXT ID
-            { fprintf(stdout, "NEXT loop with index variable %s\n", $2); }
+    FOR id_list '=' expr TO expr opt_step
+                        {fprintf(stdout, "\nFOR loop from %s to %s with step, index variable %s\n", $4, $6, $2); }
+    program
+           { fprintf(stdout, "\nNEXT loop with index variable %s\n", $2); }
+    ;
+
+next_stmt:
+    NEXT id_list    { fprintf(stdout, "\nRe-iterate loop with index variable %s\n", $2); }
+    ;
+
+id_list:
+    INT_ID
+    | FLOAT_ID
+    | DOUBLE_ID
+    | ID
     ;
 
 opt_step:
@@ -84,55 +104,83 @@ opt_step:
 
 gosub_stmt:
     GOSUB INT
-            {fprintf(stdout, "GOSUB to %d\n", $2); }
+            {fprintf(stdout, "\nGOSUB to %s\n", $2); }
     ;
 
 goto_stmt:
     GOTO INT
-            {fprintf(stdout, "GOTO to %d\n", $2); }
+            {fprintf(stdout, "\nGOTO to %s\n", $2); }
     ;        
 
 if_stmt:
-    IF cond_expr THEN INT        {fprintf(stdout, "IF condition satisfies, then goto line number %d\n", $4);}
+    IF expr RO expr THEN INT        {fprintf(stdout, "\nIF condition satisfies, then goto line number %s\n", $6);}
+    | IF string '=' string THEN INT     {fprintf(stdout, "\nIF condition satisfies, then goto line number %s\n", $6);}
+    | IF string NE string THEN INT        {fprintf(stdout, "\nIF condition satisfies, then goto line number %s\n", $6);}
     ;
 
-cond_expr:
-    expr RO expr
+string:
+    STRING
+    | STRING_ID
     ;
+
+input_stmt:
+    INPUT ID {fprintf(stdout,"\nINPUT: %s ", $2);}
+    | INPUT FLOAT_ID {fprintf(stdout,"\nINPUT: %s ", $2);}
+    | INPUT DOUBLE_ID {fprintf(stdout,"\nINPUT: %s ", $2);}
+    | INPUT STRING_ID {fprintf(stdout,"\nINPUT: %s ", $2);}
+    | INPUT INT_ID    {fprintf(stdout,"\nINPUT: %s ", $2);}
+    ;
+
 
 let_stmt:
-    LET ID '=' expr          {fprintf(stdout,"LET %s=%d",$2, $4);}
+    LET ID '=' expr          {fprintf(stdout,"\nLET %s = %s", $2, $4);}
     | LET ID '=' '"' STRING '"'
-    | LET ID '=' expr
     ;
 
 print_stmt:
-    PRINT
-    | PRINT expr delimiter
+    PRINT                   {fprintf(stdout, "\nPRINT NEWLINE");} 
+    | PRINT expr ';'  {fprintf(stdout, "\nPRINT: %s", $2);}
+    | PRINT expr delimiter  {fprintf(stdout, "\nPRINT: %s", $2);}
+    | PRINT STRING ';'    {fprintf(stdout, "\nPRINT: %s", $2);}
+    | PRINT STRING delimiter    {fprintf(stdout, "\nPRINT: %s", $2);}
     ;
+
 
 delimiter:
     ',' STRING delimiter
     | ',' expr delimiter
-    | ';' STRING delimiter
-    | ';' expr delimiter
-    |
+    | ';'
     ;
 
 return_stmt:
-    RETURN
+    RETURN  {fprintf(stdout, "RETURN\n");}
     ;
 
 expr:
-    ID
-    | INT
+    expr '-' term
+    | expr '+' term
+    | term
+
+term:
+    term '/' fac
+    | term '*' fac
+    | fac
+    ;
+
+fac:
+    | fac '^' ide
+    | ide
+    ;
+
+ide:
+    | '(' expr ')'
+    | FLOAT
+    | FLOAT_ID
     | DOUBLE
-    | expr PLUS expr
-    | expr MINUS expr 
-    | expr DIV expr
-    | expr MUL expr
-    | expr POWER expr
-    | OBRAK expr CBRAK
+    | DOUBLE_ID
+    | INT
+    | INT_ID
+    | ID
     ;
 
 rem_stmt:
@@ -144,7 +192,7 @@ stop_stmt:
     ;
 
 end_stmt:
-    END     {fprintf(stdout,"END PROGRAM\n");}
+    END     {fprintf(stdout,"END PROGRAM\n");endcount++;}
     ;
 
 
@@ -152,13 +200,16 @@ end_stmt:
 
 int main(int argc , char** argv){
     if(argc < 2){
-		printf("For,mat of input is %s <filename>\n", argv[0]);
+		printf("Format of input is %s <filename>\n", argv[0]);
 		return 0;
 	}
 	yyin = fopen(argv[1], "r");
 	yyout = fopen("Lexer.txt", "w");
 	stdout = fopen("Parser.txt", "w");
 	yyparse();
+    if(endcount>1){
+        printf("MORE THAN 1 ENDS DETECTED");
+    }
 }
 
 void yyerror(const char* message)

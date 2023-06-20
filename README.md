@@ -1,5 +1,9 @@
-# B---
+TO compile, create a .bmm file and then enter 
 
-TO RUN COPY THIS AND PASTE
 
-lex bmm.l; yacc -d bmm.y; cc lex.yy.c y.tab.c; ./a.out input.txt
+lex bmm.l
+yacc -d bmm.y
+cc lex.yy.c y.tab.c
+./a.out <filename>.bmm
+
+NO LOWERCASE LETTERS ALLOWED
